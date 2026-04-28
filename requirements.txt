@@ -1,0 +1,10 @@
+langchain
+langchain-community
+langchain-groq
+langgraph
+pydantic
+yfinance
+pandas
+pandas-ta
+numpy
+python-dotenv

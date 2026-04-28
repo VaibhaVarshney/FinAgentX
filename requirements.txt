@@ -8,3 +8,4 @@ pandas
 pandas-ta
 numpy
 python-dotenv
+streamlit

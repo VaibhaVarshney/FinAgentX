@@ -6,11 +6,10 @@ from tools.risk import compute_risk_metrics
 def run_full_stock_analysis(ticker: str) -> dict:
     """
     Runs full pipeline: market data → technical indicators → risk metrics.
-    Raises ValueError if ticker is invalid or data is unavailable.
+    Also returns historical_data for charting.
     """
 
     market_data = fetch_stock_data(ticker)
-
     technical = compute_technical_indicators(market_data["historical_data"])
     risk = compute_risk_metrics(market_data["historical_data"])
 
@@ -21,4 +20,5 @@ def run_full_stock_analysis(ticker: str) -> dict:
         "pe_ratio": market_data["pe_ratio"],
         "technical_analysis": technical,
         "risk_analysis": risk,
+        "historical_data": market_data["historical_data"],  # for charts
     }

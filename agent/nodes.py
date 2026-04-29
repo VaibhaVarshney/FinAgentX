@@ -31,18 +31,16 @@ def _normalize_intent(raw: str) -> str:
 
 def classify_intent(state: AgentState) -> AgentState:
     query = state["user_query"]
-
     prompt = f"""You are a financial assistant router. Classify the user's request into EXACTLY one of these categories:
 
-- stock_analysis     → user wants analysis of a single stock or company
+- stock_analysis      → user wants analysis of a single stock or company
 - concept_explanation → user wants to understand a financial term or concept
-- comparison         → user wants to compare two or more stocks or companies
+- comparison          → user wants to compare two or more stocks or companies
 
 User request: "{query}"
 
 Reply with ONLY the category name, nothing else.
 """
-
     raw = llm.invoke([HumanMessage(content=prompt)]).content
     intent = _normalize_intent(raw)
     return {**state, "intent": intent}
@@ -52,25 +50,17 @@ def stock_analysis_node(state: AgentState) -> AgentState:
     query = state["user_query"]
     tickers = resolve_tickers(query, needed=1)
     ticker = tickers[0]
-
     try:
         analysis = run_full_stock_analysis(ticker)
         explanation = generate_educational_analysis(analysis)
     except Exception as e:
         explanation = f"❌ Could not complete analysis for **{ticker}**: {str(e)}"
         analysis = {}
-
-    return {
-        **state,
-        "ticker": ticker,
-        "analysis_result": analysis,
-        "final_output": explanation,
-    }
+    return {**state, "ticker": ticker, "analysis_result": analysis, "final_output": explanation}
 
 
 def concept_explanation_node(state: AgentState) -> AgentState:
     query = state["user_query"]
-
     prompt = f"""You are an educational finance assistant.
 
 Explain the following financial concept clearly for beginners:
@@ -84,7 +74,6 @@ Structure your answer with:
 
 Keep it beginner-friendly. Do not give investment advice.
 """
-
     response = llm.invoke([HumanMessage(content=prompt)])
     return {**state, "final_output": response.content}
 
@@ -92,7 +81,6 @@ Keep it beginner-friendly. Do not give investment advice.
 def comparison_node(state: AgentState) -> AgentState:
     query = state["user_query"]
     tickers = resolve_tickers(query, needed=2)
-
     if len(tickers) < 2:
         tickers = tickers + ["MSFT"] if tickers else ["AAPL", "MSFT"]
 
@@ -102,7 +90,7 @@ def comparison_node(state: AgentState) -> AgentState:
         analysis1 = run_full_stock_analysis(ticker1)
         analysis2 = run_full_stock_analysis(ticker2)
     except Exception as e:
-        return {**state, "final_output": f"❌ Could not complete comparison: {str(e)}"}
+        return {**state, "final_output": f"❌ Could not complete comparison: {str(e)}", "comparison_results": []}
 
     prompt = f"""You are an educational financial assistant.
 
@@ -130,6 +118,9 @@ Explain:
 3. Key differences in their technical indicators
 4. Educational takeaway for a beginner comparing {ticker1} vs {ticker2}
 """
-
     response = llm.invoke([HumanMessage(content=prompt)])
-    return {**state, "final_output": response.content}
+    return {
+        **state,
+        "comparison_results": [analysis1, analysis2],
+        "final_output": response.content,
+    }

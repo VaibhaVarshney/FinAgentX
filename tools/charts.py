@@ -2,7 +2,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
-
 C = {
     "bg":     "#0e1117",
     "panel":  "#131929",
@@ -17,14 +16,12 @@ C = {
     "muted":  "#2d3748",
     "white":  "#e2e8f0",
 }
-
 FONT = "JetBrains Mono, monospace"
 
 
 def _base(height=500, title="", **kw):
     return dict(
-        paper_bgcolor=C["bg"],
-        plot_bgcolor=C["panel"],
+        paper_bgcolor=C["bg"], plot_bgcolor=C["panel"],
         font=dict(family=FONT, color=C["text"], size=10),
         margin=dict(l=10, r=10, t=45, b=10),
         height=height,
@@ -33,10 +30,18 @@ def _base(height=500, title="", **kw):
     )
 
 
-def _axis(color=C["grid"]):
-    return dict(showgrid=True, gridcolor=color, zeroline=False,
-                tickfont=dict(color=C["muted"], size=9),
-                linecolor=C["border"])
+def _xaxis(**kw):
+    base = dict(gridcolor=C["grid"], zeroline=False,
+                tickfont=dict(color=C["muted"], size=9), linecolor=C["border"])
+    base.update(kw)
+    return base
+
+
+def _yaxis(**kw):
+    base = dict(gridcolor=C["grid"], zeroline=False,
+                tickfont=dict(color=C["muted"], size=9), linecolor=C["border"])
+    base.update(kw)
+    return base
 
 
 def plot_price_chart(historical_df: pd.DataFrame, ticker: str):
@@ -51,7 +56,7 @@ def plot_price_chart(historical_df: pd.DataFrame, ticker: str):
     fig = make_subplots(
         rows=3, cols=1, shared_xaxes=True,
         row_heights=[0.55, 0.25, 0.20],
-        vertical_spacing=0.025,
+        vertical_spacing=0.06,
         subplot_titles=(f"{ticker} · Price & Moving Averages",
                         "RSI (14)", "Volume"),
     )
@@ -75,8 +80,7 @@ def plot_price_chart(historical_df: pd.DataFrame, ticker: str):
     bar_colors = [C["green"] if c >= o else C["red"]
                   for c, o in zip(df["Close"], df["Open"])]
     fig.add_trace(go.Bar(x=df.index, y=df["Volume"],
-                         marker_color=bar_colors, showlegend=False,
-                         marker_line_width=0), row=3, col=1)
+                         marker_color=bar_colors, showlegend=False, marker_line_width=0), row=3, col=1)
 
     fig.update_layout(**_base(580, f"{ticker} · Technical Analysis",
                               legend=dict(bgcolor=C["panel"], bordercolor=C["border"], borderwidth=1,
@@ -84,8 +88,8 @@ def plot_price_chart(historical_df: pd.DataFrame, ticker: str):
                               hovermode="x unified"))
 
     for row in [1, 2, 3]:
-        fig.update_xaxes(**_axis(), row=row, col=1)
-        fig.update_yaxes(**_axis(), row=row, col=1)
+        fig.update_xaxes(row=row, col=1, **_xaxis())
+        fig.update_yaxes(row=row, col=1, **_yaxis())
 
     for ann in fig.layout.annotations:
         ann.font.color = C["text"]
@@ -102,18 +106,15 @@ def plot_risk_chart(risk_data: dict, ticker: str):
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=metrics, y=values,
-        marker_color=colors,
-        marker_line_width=0,
-        text=[f"{v:.4f}" for v in values],
-        textposition="outside",
+        x=metrics, y=values, marker_color=colors, marker_line_width=0,
+        text=[f"{v:.4f}" for v in values], textposition="outside",
         textfont=dict(color=C["white"], size=10),
     ))
 
     fig.update_layout(
         **_base(310, f"{ticker} · Risk Metrics", showlegend=False))
-    fig.update_xaxes(**_axis(), showgrid=False)
-    fig.update_yaxes(**_axis(), zeroline=True, zerolinecolor=C["border"])
+    fig.update_xaxes(**_xaxis())
+    fig.update_yaxes(**_yaxis(zeroline=True, zerolinecolor=C["border"]))
     return fig
 
 
@@ -136,8 +137,8 @@ def plot_comparison_chart(analysis1: dict, analysis2: dict):
                                 legend=dict(
                                     bgcolor=C["panel"], bordercolor=C["border"], borderwidth=1, font=dict(size=9)),
                                 hovermode="x unified"))
-    fig_p.update_xaxes(**_axis())
-    fig_p.update_yaxes(**_axis())
+    fig_p.update_xaxes(**_xaxis())
+    fig_p.update_yaxes(**_yaxis())
 
     metrics = ["Volatility", "Sharpe Ratio", "Max Drawdown"]
     v1 = [analysis1["risk_analysis"]["annual_volatility"],
@@ -158,7 +159,7 @@ def plot_comparison_chart(analysis1: dict, analysis2: dict):
     fig_r.update_layout(**_base(310, f"{t1} vs {t2} · Risk Comparison",
                                 barmode="group",
                                 legend=dict(bgcolor=C["panel"], bordercolor=C["border"], borderwidth=1, font=dict(size=9))))
-    fig_r.update_xaxes(**_axis(), showgrid=False)
-    fig_r.update_yaxes(**_axis(), zeroline=True, zerolinecolor=C["border"])
+    fig_r.update_xaxes(**_xaxis())
+    fig_r.update_yaxes(**_yaxis(zeroline=True, zerolinecolor=C["border"]))
 
     return fig_p, fig_r

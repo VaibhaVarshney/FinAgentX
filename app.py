@@ -159,8 +159,18 @@ hr { border-color: #1e2738 !important; margin: 1.8rem 0 !important; }
     color: #3b82f6 !important; border-bottom: 2px solid #3b82f6 !important;
 }
 
-/* Spacing between plotly charts */
-.stPlotlyChart { margin-bottom: 1.2rem !important; }
+/* Gap between charts */
+[data-testid="stPlotlyChart"] {
+    margin-bottom: 1.5rem !important;
+    padding-bottom: 1rem !important;
+}
+
+/* Button column vertical alignment */
+[data-testid="column"]:last-child {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -191,15 +201,15 @@ def load_agent():
 
 # ── Quick queries ─────────────────────────────────────────────────────────────
 QUERIES = [
-    ("📈 analysis",   "Analyze Apple"),
-    ("📈 analysis",   "Analyze Infosys"),
-    ("📈 analysis",   "Analyze NVDA"),
-    ("⚖️ comparison", "Compare Tesla and Apple"),
-    ("⚖️ comparison", "Compare Google and Microsoft"),
-    ("⚖️ comparison", "Compare Infosys and TCS"),
-    ("💡 concept",    "What is Sharpe Ratio?"),
-    ("💡 concept",    "What is RSI?"),
-    ("💡 concept",    "Explain PE ratio"),
+    ("📈", "analysis",   "Analyze Apple"),
+    ("📈", "analysis",   "Analyze Infosys"),
+    ("📈", "analysis",   "Analyze NVDA"),
+    ("⚖️", "comparison", "Compare Tesla and Apple"),
+    ("⚖️", "comparison", "Compare Google and Microsoft"),
+    ("⚖️", "comparison", "Compare Infosys and TCS"),
+    ("💡", "concept",    "What is Sharpe Ratio?"),
+    ("💡", "concept",    "What is RSI?"),
+    ("💡", "concept",    "Explain PE ratio"),
 ]
 
 st.markdown('<div class="section-label">Quick queries</div>',
@@ -207,10 +217,11 @@ st.markdown('<div class="section-label">Quick queries</div>',
 
 clicked = None
 c1, c2, c3 = st.columns(3, gap="small")
-for i, (cat, label) in enumerate(QUERIES):
+for i, (icon, cat, label) in enumerate(QUERIES):
     col = [c1, c2, c3][i % 3]
     with col:
-        if st.button(f"{cat}\n{label}", key=f"q{i}"):
+        # Show just the label as button text — clean and uncluttered
+        if st.button(label, key=f"q{i}", help=cat):
             clicked = label
 
 # ── Input ─────────────────────────────────────────────────────────────────────
@@ -225,7 +236,6 @@ with col_in:
         label_visibility="collapsed",
     )
 with col_btn:
-    st.markdown("<div style='margin-top:1px'></div>", unsafe_allow_html=True)
     submit = st.button("Analyze →", key="main_submit")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -286,10 +296,10 @@ if run:
                         ["📈  Price & Indicators", "⚠️  Risk Metrics"])
                     with tab1:
                         st.plotly_chart(plot_price_chart(
-                            analysis["historical_data"], ticker), use_container_width=True)
+                            analysis["historical_data"], ticker), width='stretch')
                     with tab2:
                         st.plotly_chart(plot_risk_chart(
-                            risk, ticker), use_container_width=True)
+                            risk, ticker), width='stretch')
 
                 st.markdown(
                     f'<div class="result-box">{output}</div>', unsafe_allow_html=True)
@@ -323,20 +333,18 @@ if run:
                             tab1, tab2 = st.tabs(
                                 ["📊  Price Comparison", "⚖️  Risk Comparison"])
                             with tab1:
-                                st.plotly_chart(
-                                    fig_p, use_container_width=True)
+                                st.plotly_chart(fig_p, width='stretch')
                                 st.markdown(
                                     "<div style='height:0.8rem'></div>", unsafe_allow_html=True)
                                 pc1, pc2 = st.columns(2, gap="medium")
                                 with pc1:
                                     st.plotly_chart(plot_price_chart(
-                                        a1["historical_data"], tickers[0]), use_container_width=True)
+                                        a1["historical_data"], tickers[0]), width='stretch')
                                 with pc2:
                                     st.plotly_chart(plot_price_chart(
-                                        a2["historical_data"], tickers[1]), use_container_width=True)
+                                        a2["historical_data"], tickers[1]), width='stretch')
                             with tab2:
-                                st.plotly_chart(
-                                    fig_r, use_container_width=True)
+                                st.plotly_chart(fig_r, width='stretch')
                         except Exception as e:
                             st.warning(f"Charts unavailable: {e}")
 

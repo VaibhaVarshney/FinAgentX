@@ -1,5 +1,4 @@
 import os
-import re
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
@@ -7,69 +6,27 @@ from langchain_core.messages import HumanMessage
 from agent.state import AgentState
 from agent.analysis_engine import run_full_stock_analysis
 from agent.llm_synthesizer import generate_educational_analysis
+from tools.ticker_resolver import resolve_tickers
 
 load_dotenv()
 
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     api_key=os.getenv("GROQ_API_KEY"),
-    temperature=0.0,  # deterministic for classification
+    temperature=0.0,
 )
 
-# Valid intents — used for normalization after LLM response
 VALID_INTENTS = {"stock_analysis", "concept_explanation", "comparison"}
-
-# Common false positives from naive isupper() extraction
-TICKER_BLACKLIST = {"I", "A", "AI", "US", "CEO", "CFO",
-                    "ETF", "IPO", "Q1", "Q2", "Q3", "Q4", "GDP", "RSI", "PE"}
 
 
 def _normalize_intent(raw: str) -> str:
-    """
-    Cleans LLM intent output and maps it to a valid category.
-    Falls back to 'stock_analysis' if unrecognized.
-    """
     cleaned = raw.strip().lower().replace(" ", "_").replace("-", "_")
-
-    # Try direct match first
     if cleaned in VALID_INTENTS:
         return cleaned
-
-    # Try partial match for robustness
     for intent in VALID_INTENTS:
         if intent in cleaned:
             return intent
-
-    return "stock_analysis"  # safe default
-
-
-def _extract_tickers(query: str) -> list[str]:
-    """
-    Improved ticker extraction:
-    - Looks for 1-5 uppercase letter sequences
-    - Filters out common English words and known false positives
-    - Also handles explicit $TICKER format (e.g. $AAPL)
-    """
-    # Match $TICKER format first (explicit)
-    dollar_tickers = re.findall(r'\$([A-Z]{1,5})', query)
-
-    # Match plain uppercase words
-    words = query.split()
-    plain_tickers = [
-        w.strip(".,!?") for w in words
-        if re.fullmatch(r'[A-Z]{1,5}', w.strip(".,!?"))
-        and w.strip(".,!?") not in TICKER_BLACKLIST
-    ]
-
-    # Dollar tickers take priority, then plain
-    seen = set()
-    result = []
-    for t in dollar_tickers + plain_tickers:
-        if t not in seen:
-            seen.add(t)
-            result.append(t)
-
-    return result
+    return "stock_analysis"
 
 
 def classify_intent(state: AgentState) -> AgentState:
@@ -77,32 +34,30 @@ def classify_intent(state: AgentState) -> AgentState:
 
     prompt = f"""You are a financial assistant router. Classify the user's request into EXACTLY one of these categories:
 
-- stock_analysis     → user wants analysis of a single stock
+- stock_analysis     → user wants analysis of a single stock or company
 - concept_explanation → user wants to understand a financial term or concept
-- comparison         → user wants to compare two or more stocks
+- comparison         → user wants to compare two or more stocks or companies
 
 User request: "{query}"
 
-Reply with ONLY the category name, nothing else. No punctuation, no explanation.
+Reply with ONLY the category name, nothing else.
 """
 
     raw = llm.invoke([HumanMessage(content=prompt)]).content
     intent = _normalize_intent(raw)
-
     return {**state, "intent": intent}
 
 
 def stock_analysis_node(state: AgentState) -> AgentState:
     query = state["user_query"]
-
-    tickers = _extract_tickers(query)
-    ticker = tickers[0] if tickers else "AAPL"
+    tickers = resolve_tickers(query, needed=1)
+    ticker = tickers[0]
 
     try:
         analysis = run_full_stock_analysis(ticker)
         explanation = generate_educational_analysis(analysis)
     except Exception as e:
-        explanation = f"Could not complete analysis for {ticker}: {str(e)}"
+        explanation = f"❌ Could not complete analysis for **{ticker}**: {str(e)}"
         analysis = {}
 
     return {
@@ -131,17 +86,15 @@ Keep it beginner-friendly. Do not give investment advice.
 """
 
     response = llm.invoke([HumanMessage(content=prompt)])
-
     return {**state, "final_output": response.content}
 
 
 def comparison_node(state: AgentState) -> AgentState:
     query = state["user_query"]
-
-    tickers = _extract_tickers(query)
+    tickers = resolve_tickers(query, needed=2)
 
     if len(tickers) < 2:
-        tickers = ["AAPL", "MSFT"]
+        tickers = tickers + ["MSFT"] if tickers else ["AAPL", "MSFT"]
 
     ticker1, ticker2 = tickers[0], tickers[1]
 
@@ -149,11 +102,11 @@ def comparison_node(state: AgentState) -> AgentState:
         analysis1 = run_full_stock_analysis(ticker1)
         analysis2 = run_full_stock_analysis(ticker2)
     except Exception as e:
-        return {**state, "final_output": f"Could not complete comparison: {str(e)}"}
+        return {**state, "final_output": f"❌ Could not complete comparison: {str(e)}"}
 
     prompt = f"""You are an educational financial assistant.
 
-Compare these two stocks for learning purposes. Do NOT give buy or sell advice.
+Compare {ticker1} and {ticker2} for learning purposes. Do NOT give buy or sell advice.
 
 {ticker1} Data:
 - Price: {analysis1['current_price']} | PE: {analysis1['pe_ratio']}
@@ -172,12 +125,11 @@ Compare these two stocks for learning purposes. Do NOT give buy or sell advice.
 - Max Drawdown: {analysis2['risk_analysis']['max_drawdown']}
 
 Explain:
-1. Which stock has stronger trend signals and why
-2. Which stock carries higher risk and what that means
-3. Key differences in technical indicators
-4. Educational takeaway for a beginner learning to compare stocks
+1. Which of {ticker1} or {ticker2} has stronger trend signals and why
+2. Which of {ticker1} or {ticker2} carries higher risk
+3. Key differences in their technical indicators
+4. Educational takeaway for a beginner comparing {ticker1} vs {ticker2}
 """
 
     response = llm.invoke([HumanMessage(content=prompt)])
-
     return {**state, "final_output": response.content}

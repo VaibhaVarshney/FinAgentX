@@ -1,14 +1,17 @@
 import time
 import yfinance as yf
 import pandas as pd
+import streamlit as st
 
 
-def fetch_stock_data(ticker: str, period: str = "1y", retries: int = 3) -> dict:
+@st.cache_data(ttl=600)  # cache for 10 minutes
+def fetch_stock_data(ticker: str, period: str = "1y") -> dict:
     """
     Fetch historical stock data and basic info.
+    Cached for 10 minutes to avoid rate limiting.
     Retries up to 3 times on rate limit errors.
     """
-
+    retries = 3
     for attempt in range(retries):
         try:
             stock = yf.Ticker(ticker)
@@ -29,24 +32,17 @@ def fetch_stock_data(ticker: str, period: str = "1y", retries: int = 3) -> dict:
             }
 
         except ValueError:
-            raise  # Don't retry invalid tickers
+            raise
 
         except Exception as e:
             error_msg = str(e).lower()
-
-            if "rate limit" in error_msg or "too many requests" in error_msg:
+            if "rate limit" in error_msg or "too many requests" in error_msg or "429" in error_msg:
                 if attempt < retries - 1:
-                    wait = 5 * (attempt + 1)  # 5s, 10s, 15s
-                    time.sleep(wait)
+                    time.sleep(8 * (attempt + 1))
                     continue
                 else:
                     raise ValueError(
-                        f"Yahoo Finance is rate limiting requests right now. "
-                        f"Please wait 30 seconds and try again."
-                    )
+                        "Yahoo Finance is rate limiting requests. Please wait 30 seconds and try again.")
             else:
                 raise ValueError(
                     f"Could not fetch data for '{ticker}': {str(e)}")
-
-    raise ValueError(
-        f"Failed to fetch data for '{ticker}' after {retries} attempts.")
